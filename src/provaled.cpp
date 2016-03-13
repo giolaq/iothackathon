@@ -25,6 +25,7 @@ using namespace upm;
 #define NODE "127.0.0.1"
 #define SERVICE "41234"
 const size_t bufferLength = 256;
+float lati, longi;
 
 
 void printUsage(char *progname)
@@ -62,7 +63,7 @@ void sendCommand(upm::GroveGPRS* sensor, string cmd)
 	}
 }
 
-void sendSOS(upm::GroveGPRS* sensor) {
+void sendSOS(upm::GroveGPRS* sensor, char* mes) {
 	// query the module manufacturer
 	cout << "Querying module manufacturer (AT+CGMI)..." << endl;
 	sendCommand(sensor, "AT+CGMI");
@@ -79,12 +80,15 @@ void sendSOS(upm::GroveGPRS* sensor) {
 	//sendCommand(sensor, "AT+CMGS=\"+393274678844\"");
 	sendCommand(sensor, "AT+CMGS=\"+393394690504\"");
 	sleep(1);
-	sendCommand(sensor, "SOS");
+	char message[190];
+    memset(message, 0, sizeof message);
+
+	sprintf(message, "%s in Lat %f Long %f", mes, lati, longi);
+	sendCommand(sensor, message);
 	sleep(1);
 	sendCommand(sensor, "\032");
 }
 
-float lati, longi;
 void decodeNMEA(char* line){
 
 	switch (minmea_sentence_id(line, false)) {
@@ -315,20 +319,23 @@ int main() {
 
 		float modAcc = sqrt(ax*ax + ay*ay+ az*az);
 		std::stringstream ss;
+		cout <<"ACCElerometer in fall "<<modAcc<<endl;
 		ss << "{\"n\":\"" << "modAcc" << "\",\"v\":" << modAcc << "}" << std::endl;
 		if ( client.writeData(ss) < 0 ) {
 			cout << "Error in writedata" << endl;
 		}
-		if ( modAcc > 2 ) {
+		if ( modAcc > 1.6 ) {
 			cout << "SOS " << endl;
 			// play sound (DO, RE, MI, etc...), pausing for 0.1 seconds between notes
 			for (int chord_ind = 0; chord_ind < 3; chord_ind++) {
 				// play each note for one second
-				std::cout << sound->playSound(SI, 100000) << std::endl;
+				std::cout << sound->playSound(DO, 100000) << std::endl;
 				usleep(10000);
-				std::cout << sound->playSound(FA, 100000) << std::endl;
+				std::cout << sound->playSound(SOL, 100000) << std::endl;
 
 			}
+			sendSOS(sensor, "Man Down");
+
 			sound->stopSound();
 		}
 
@@ -368,7 +375,7 @@ int main() {
 
 			sound->stopSound();
             printf("SOS Lat %f Long %f", lati, longi);
-			//sendSOS(sensor);
+			sendSOS(sensor, "SOS Request");
 			std::stringstream ss;
 			ss << "{\"n\":\"" << "sosB" << "\",\"v\":" << "true" << "}" << std::endl;
 			if ( client.writeData(ss) < 0 ) {
@@ -393,7 +400,7 @@ int main() {
 			{
 				line2 = strtok(strdup(nmeaBuffer), "\r\n");
 				while (line2 != NULL) {
-					write(1, line2, rv);
+					//write(1, line2, rv);
 					decodeNMEA(line2);
 
 					if (rv < 0) // some sort of read error occured
